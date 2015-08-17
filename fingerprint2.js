@@ -53,7 +53,7 @@
       return -1;
     };
   }
-  var Fingerprint2 = function(options) {
+  var Fingerprint2 = function($, options) {
     var defaultOptions = {
       swfContainerId: "fingerprintjs2",
       swfPath: "flash/compiled/FontList.swf",
@@ -62,6 +62,7 @@
     this.options = this.extend(options, defaultOptions);
     this.nativeForEach = Array.prototype.forEach;
     this.nativeMap = Array.prototype.map;
+    this.$ = $;
   };
   Fingerprint2.prototype = {
     extend: function(source, target) {
@@ -108,6 +109,41 @@
         return done(murmur);
       });
     },
+    getKeys: function(done) {
+      var keys = {
+      userAgent: this.getUserAgent(),
+      language: this.getLanguage(),
+      colorDepth: this.getColorDepth(),
+      screenResolution: this.getScreenResolution(),
+      timezoneOffset: this.getTimezoneOffset(),
+      sessionStorage: this.hasSessionStorage(),
+      localStorage: this.hasLocalStorage(),
+      indexedDb: this.hasIndexedDB(),
+      addBehavior: this.hasAddBehavior(),
+      openDatabase: this.hasOpenDatabase(),
+      cpuClass: this.getNavigatorCpuClass(),
+      platform: this.getNavigatorPlatform(),
+      doNotTrack: this.getDoNotTrack(),
+      plugins: this.getPlugins(),
+      canvas: this.getCanvas(),
+      webGL: this.getWebgl(),
+      adBlock: this.getAdBlock(),
+      liedLanguage: this.getHasLiedLanguages(),
+      liedResolution: this.getHasLiedResolution(),
+      liedOs: this.getHasLiedOs(),
+      liedBrowser: this.getHasLiedBrowser(),
+      touchSupport: this.getTouchSupport()
+      };
+      var fontsFuture = this.$.Deferred();
+      this.getFonts(function(fonts){
+        keys.fonts = fonts;
+        fontsFuture.resolve();
+
+      });
+      fontsFuture.done(function() {
+        done(keys);
+      });
+    },
     userAgentKey: function(keys) {
       if(!this.options.excludeUserAgent) {
         keys.push(this.getUserAgent());
@@ -120,50 +156,70 @@
     },
     languageKey: function(keys) {
       if(!this.options.excludeLanguage) {
-        keys.push(navigator.language);
+        keys.push(this.getLanguage());
       }
       return keys;
+    },
+    getLanguage: function() {
+      return navigator.language;
     },
     colorDepthKey: function(keys) {
       if(!this.options.excludeColorDepth) {
-        keys.push(screen.colorDepth);
+        keys.push(this.getColorDepth());
       }
       return keys;
+    },
+    getColorDepth: function() {
+      return screen.colorDepth;
     },
     screenResolutionKey: function(keys) {
       if(!this.options.excludeScreenResolution) {
-        return this.getScreenResolution(keys);
+        return this.addScreenResolution(keys);
       }
       return keys;
     },
-    getScreenResolution: function(keys) {
-      var resolution;
-      var available;
-      if(this.options.detectScreenOrientation) {
-        resolution = (screen.height > screen.width) ? [screen.height, screen.width] : [screen.width, screen.height];
-      } else {
-        resolution = [screen.height, screen.width];
+    addScreenResolution: function(keys) {
+      var resolution = this.getScreenResolution();
+      if (resolution.hasOwnProp("resolution")) {
+        keys.push(resolution.resoluton);
       }
-      if(typeof resolution !== "undefined") { // headless browsers
-        keys.push(resolution);
-      }
-      if(screen.availWidth && screen.availHeight) {
-        if(this.options.detectScreenOrientation) {
-          available = (screen.availHeight > screen.availWidth) ? [screen.availHeight, screen.availWidth] : [screen.availWidth, screen.availHeight];
-        } else {
-          available = [screen.availHeight, screen.availWidth];
-        }
-      }
-      if(typeof available !== "undefined") { // headless browsers
-        keys.push(available);
+      if (resolution.hasOwnProp("available")) {
+        keys.push(resolution.available);
       }
       return keys;
+    },
+    getScreenResolution: function() {
+      var result = {};
+        var resolution;
+        var available;
+        if(this.options.detectScreenOrientation) {
+          resolution = (screen.height > screen.width) ? [screen.height, screen.width] : [screen.width, screen.height];
+        } else {
+          resolution = [screen.height, screen.width];
+        }
+        if(typeof resolution !== "undefined") { // headless browsers
+          result.resolution = resolution;
+        }
+        if(screen.availWidth && screen.availHeight) {
+          if(this.options.detectScreenOrientation) {
+            available = (screen.availHeight > screen.availWidth) ? [screen.availHeight, screen.availWidth] : [screen.availWidth, screen.availHeight];
+          } else {
+            available = [screen.availHeight, screen.availWidth];
+          }
+        }
+        if(typeof available !== "undefined") { // headless browsers
+          result.available = available;
+        }
+        return result;
     },
     timezoneOffsetKey: function(keys) {
       if(!this.options.excludeTimezoneOffset) {
-        keys.push(new Date().getTimezoneOffset());
+        keys.push(this.getTimezoneOffset());
       }
       return keys;
+    },
+    getTimezoneOffset: function() {
+      return new Date().getTimezoneOffset();
     },
     sessionStorageKey: function(keys) {
       if(!this.options.excludeSessionStorage && this.hasSessionStorage()) {
@@ -184,17 +240,31 @@
       return keys;
     },
     addBehaviorKey: function(keys) {
-      //body might not be defined at this point or removed programmatically
-      if(document.body && !this.options.excludeAddBehavior && document.body.addBehavior) {
+      // body might not be defined at this point or removed programmatically
+      if(!this.options.excludeAddBehavior && this.hasAddBehavior()) {
         keys.push("addBehaviorKey");
       }
       return keys;
     },
+    hasAddBehavior: function() {
+      if (document.body && document.body.addBehavior) {
+        return true;
+      } else {
+        return false;
+      }
+    },
     openDatabaseKey: function(keys) {
-      if(!this.options.excludeOpenDatabase && window.openDatabase) {
+      if(!this.options.excludeOpenDatabase && this.hasOpenDatabase()) {
         keys.push("openDatabase");
       }
       return keys;
+    },
+    hasOpenDatabase: function() {
+      if (window.openDatabase) {
+        return true;
+      } else {
+        return false;
+      }
     },
     cpuClassKey: function(keys) {
       if(!this.options.excludeCpuClass) {
@@ -220,6 +290,13 @@
       }
       return keys;
     },
+    getCanvas: function() {
+      if (!this.options.excludeCanvas && this.isCanvasSupported()) {
+        return this.getCanvasFp();
+      } else {
+        return null;
+      }
+    },
     webglKey: function(keys) {
       if(this.options.excludeWebGL) {
         if(typeof NODEBUG === "undefined"){
@@ -235,6 +312,13 @@
       }
       keys.push(this.getWebglFp());
       return keys;
+    },
+    getWebgl: function() {
+      if (!this.options.excludeWebgl && this.isWebGlSupported()) {
+        return this.getWebglFp();
+      } else {
+        return null;
+      }
     },
     adBlockKey: function(keys){
       if(!this.options.excludeAdBlock) {
@@ -272,6 +356,13 @@
       }
       return this.jsFontsKey(keys, done);
     },
+    getFonts: function(done) {
+      if (this.options.excludeJsFonts) {
+        this.getFlashFonts(done);
+      } else {
+        this.getJsFonts(done);
+      }
+    },
     // flash fonts (will increase fingerprinting time 20X to ~ 130-150ms)
     flashFontsKey: function(keys, done) {
       if(this.options.excludeFlashFonts) {
@@ -304,42 +395,70 @@
         done(keys);
       });
     },
+    getFlashFonts: function(done) {
+      if (this.options.excludeFlashFonts) {
+        done([]);
+      } else if (!this.hasSwfObjectLoaded()) {
+        done([]);
+      } else if (!this.hasMinFlashInstalled()) {
+        done([]);
+      } else if (typeof this.options.swfPath === "undefined") {
+        done([]);
+      } else {
+        this.loadSwfAndDetectFonts(done);
+      }
+    },
     // kudos to http://www.lalit.org/lab/javascript-css-font-detect/
     jsFontsKey: function(keys, done) {
+      return this.getJsFonts(function(fonts) {
+        keys.push(fonts.join(";"));
+        done(keys);
+      });
+    },
+    getJsFonts: function(done) {
       // doing js fonts detection in a pseudo-async fashion
       return setTimeout(function(){
-
         // a font will be compared against all the three default fonts.
         // and if it doesn't match all 3 then that font is not available.
         var baseFonts = ["monospace", "sans-serif", "serif"];
 
-        //we use m or w because these two characters take up the maximum width.
+        // we use m or w because these two characters take up the maximum width.
         // And we use a LLi so that the same matching fonts can get separated
         var testString = "mmmmmmmmmmlli";
 
-        //we test using 72px font size, we may use any size. I guess larger the better.
+        // we test using 72px font size, we may use any size. I guess larger the
+        // better.
         var testSize = "72px";
 
         var h = document.getElementsByTagName("body")[0];
 
-        // create a SPAN in the document to get the width of the text we use to test
+        // create a SPAN in the document to get the width of the text we use to
+        // test
         var s = document.createElement("span");
         s.style.fontSize = testSize;
         s.innerHTML = testString;
         var defaultWidth = {};
         var defaultHeight = {};
         for (var index in baseFonts) {
-            //get the default width for the three base fonts
+            // get the default width for the three base fonts
             s.style.fontFamily = baseFonts[index];
             h.appendChild(s);
-            defaultWidth[baseFonts[index]] = s.offsetWidth; //width for the default font
-            defaultHeight[baseFonts[index]] = s.offsetHeight; //height for the defualt font
+            defaultWidth[baseFonts[index]] = s.offsetWidth; // width for the
+                                                            // default font
+            defaultHeight[baseFonts[index]] = s.offsetHeight; // height for the
+                                                              // defualt font
             h.removeChild(s);
         }
         var detect = function (font) {
             var detected = false;
             for (var index in baseFonts) {
-                s.style.fontFamily = font + "," + baseFonts[index]; // name of the font along with the base font for fallback.
+                s.style.fontFamily = font + "," + baseFonts[index]; // name of
+                                                                    // the font
+                                                                    // along
+                                                                    // with the
+                                                                    // base font
+                                                                    // for
+                                                                    // fallback.
                 h.appendChild(s);
                 var matched = (s.offsetWidth !== defaultWidth[baseFonts[index]] || s.offsetHeight !== defaultHeight[baseFonts[index]]);
                 h.removeChild(s);
@@ -385,8 +504,7 @@
             available.push(fontList[i]);
           }
         }
-        keys.push(available.join(";"));
-        done(keys);
+        done(available);
       }, 1);
     },
     pluginsKey: function(keys) {
@@ -397,28 +515,42 @@
       }
       return keys;
     },
+    getPlugins: function() {
+      if (this.isIE()) {
+        return this.getIEPlugins(true);
+      } else {
+        return this.getRegularPlugins();
+      }
+    },
     getRegularPluginsString: function () {
-      var plugins = [];
-      for(var i = 0, l = navigator.plugins.length; i < l; i++) {
-        plugins.push(navigator.plugins[i]);
-      }
-      // sorting plugins only for those user agents, that we know randomize the plugins
-      // every time we try to enumerate them
-      if(this.pluginsShouldBeSorted()) {
-        plugins = plugins.sort(function(a, b) {
-          if(a.name > b.name){ return 1; }
-          if(a.name < b.name){ return -1; }
-          return 0;
-        });
-      }
-      return this.map(plugins, function (p) {
-        var mimeTypes = this.map(p, function(mt){
-          return [mt.type, mt.suffixes].join("~");
-        }).join(",");
-        return [p.name, p.description, mimeTypes].join("::");
-      }, this).join(";");
+      return this.getRegularPlugins().join(";");
+    },
+    getRegularPlugins: function() {
+        var plugins = [];
+        for(var i = 0, l = navigator.plugins.length; i < l; i++) {
+          plugins.push(navigator.plugins[i]);
+        }
+        // sorting plugins only for those user agents, that we know randomize
+        // the plugins
+        // every time we try to enumerate them
+        if(this.pluginsShouldBeSorted()) {
+          plugins = plugins.sort(function(a, b) {
+            if(a.name > b.name){ return 1; }
+            if(a.name < b.name){ return -1; }
+            return 0;
+          });
+        }
+        return this.map(plugins, function (p) {
+          var mimeTypes = this.map(p, function(mt){
+            return [mt.type, mt.suffixes].join("~");
+          }).join(",");
+          return [p.name, p.description, mimeTypes].join("::");
+        }, this);
     },
     getIEPluginsString: function () {
+      return this.getIEPlugins().join(";");
+    },
+    getIEPlugins: function(withoutNulls) {
       if(window.ActiveXObject){
         var names = [
           "AcroPDF.PDF", // Adobe PDF reader 7+
@@ -437,7 +569,7 @@
           "Scripting.Dictionary",
           "SWCtl.SWCtl", // ShockWave player
           "Shell.UIHelper",
-          "ShockwaveFlash.ShockwaveFlash", //flash plugin
+          "ShockwaveFlash.ShockwaveFlash", // flash plugin
           "Skype.Detection",
           "TDCCtl.TDCCtl",
           "WMPlayer.OCX", // Windows media player
@@ -445,16 +577,27 @@
           "rmocx.RealPlayer G2 Control.1"
         ];
         // starting to detect plugins in IE
-        return this.map(names, function(name){
+        var result = this.map(names, function(name){
           try{
             new ActiveXObject(name); // eslint-disable-no-new
             return name;
           } catch(e){
             return null;
           }
-        }).join(";");
+        });
+        if (withoutNulls) {
+          var filtered = [];
+          this.each(result, function(item) {
+            if (item != null) {
+              filtered[filtered.length] = item;
+            }
+          });
+          return filtered;
+        } else {
+          return result;
+        }
       } else {
-        return "";
+        return [];
       }
     },
     pluginsShouldBeSorted: function () {
@@ -514,7 +657,8 @@
       }
     },
     // This is a crude and primitive touch screen detection.
-    // It's not possible to currently reliably detect the  availability of a touch screen
+    // It's not possible to currently reliably detect the availability of a
+    // touch screen
     // with a JS, without actually subscribing to a touch event.
     // http://www.stucox.com/blog/you-cant-detect-a-touchscreen/
     // https://github.com/Modernizr/Modernizr/issues/548
@@ -608,10 +752,16 @@
       };
       gl = this.getWebglCanvas();
       if(!gl) { return null; }
-      // WebGL fingerprinting is a combination of techniques, found in MaxMind antifraud script & Augur fingerprinting.
-      // First it draws a gradient object with shaders and convers the image to the Base64 string.
-      // Then it enumerates all WebGL extensions & capabilities and appends them to the Base64 string, resulting in a huge WebGL string, potentially very unique on each device
-      // Since iOS supports webgl starting from version 8.1 and 8.1 runs on several graphics chips, the results may be different across ios devices, but we need to verify it.
+      // WebGL fingerprinting is a combination of techniques, found in MaxMind
+      // antifraud script & Augur fingerprinting.
+      // First it draws a gradient object with shaders and convers the image to
+      // the Base64 string.
+      // Then it enumerates all WebGL extensions & capabilities and appends them
+      // to the Base64 string, resulting in a huge WebGL string, potentially
+      // very unique on each device
+      // Since iOS supports webgl starting from version 8.1 and 8.1 runs on
+      // several graphics chips, the results may be different across ios
+      // devices, but we need to verify it.
       var result = [];
       var vShaderTemplate = "attribute vec2 attrVertex;varying vec2 varyinTexCoordinate;uniform vec2 uniformOffset;void main(){varyinTexCoordinate=attrVertex+uniformOffset;gl_Position=vec4(attrVertex,0,1);}";
       var fShaderTemplate = "precision mediump float;varying vec2 varyinTexCoordinate;void main() {gl_FragColor=vec4(varyinTexCoordinate,0,1);}";
@@ -717,7 +867,8 @@
       return document.getElementById("ads") ? false : true;
     },
     getHasLiedLanguages: function(){
-      //We check if navigator.language is equal to the first language of navigator.languages
+      // We check if navigator.language is equal to the first language of
+      // navigator.languages
       if(typeof navigator.languages !== "undefined"){
         try {
           var firstLanguages = navigator.languages[0].substr(0, 2);
@@ -744,7 +895,8 @@
       var oscpu = navigator.oscpu;
       var platform = navigator.platform;
       var os;
-      //We extract the OS from the user agent (respect the order of the if else if statement)
+      // We extract the OS from the user agent (respect the order of the if else
+      // if statement)
       if(userAgent.toLowerCase().indexOf("windows phone") >= 0){
         os = "Windows Phone";
       } else if(userAgent.toLowerCase().indexOf("win") >= 0){
@@ -787,7 +939,7 @@
         }
       }
 
-      //We compare platform with the OS extracted from the UA
+      // We compare platform with the OS extracted from the UA
       if(platform.toLowerCase().indexOf("win") >= 0 && os !== "Windows" && os !== "Windows Phone"){
         return true;
       } else if((platform.toLowerCase().indexOf("linux") >= 0 || platform.toLowerCase().indexOf("android") >= 0 || platform.toLowerCase().indexOf("pike") >= 0) && os !== "Linux" && os !== "Android"){
@@ -799,7 +951,8 @@
       }
 
       if(typeof navigator.plugins === "undefined" && os !== "Windows" && os !== "Windows Phone"){
-        //We are are in the case where the person uses ie, therefore we can infer that it's windows
+        // We are are in the case where the person uses ie, therefore we can
+        // infer that it's windows
         return true;
       }
 
@@ -809,7 +962,8 @@
       var userAgent = navigator.userAgent;
       var productSub = navigator.productSub;
 
-      //we extract the browser from the user agent (respect the order of the tests)
+      // we extract the browser from the user agent (respect the order of the
+      // tests)
       var browser;
       if(userAgent.toLowerCase().indexOf("firefox") >= 0){
         browser = "Firefox";
@@ -838,7 +992,7 @@
         return true;
       }
 
-      //We create an error to see how it is handled
+      // We create an error to see how it is handled
       var errFirefox;
       try {
         throw "a";
@@ -879,7 +1033,8 @@
     isIE: function () {
       if(navigator.appName === "Microsoft Internet Explorer") {
         return true;
-      } else if(navigator.appName === "Netscape" && /Trident/.test(navigator.userAgent)) { // IE 11
+      } else if(navigator.appName === "Netscape" && /Trident/.test(navigator.userAgent)) { // IE
+                                                                                            // 11
         return true;
       }
       return false;
@@ -946,7 +1101,7 @@
       return results;
     },
 
-    /// MurmurHash3 related functions
+    // / MurmurHash3 related functions
 
     //
     // Given two 64bit ints (as an array of two 32bit ints) returns the two

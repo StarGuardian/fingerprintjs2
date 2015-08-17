@@ -6,14 +6,17 @@
   },
   "globals": {
     "swfobject": true,
-    "ActiveXObject": true
+    "ActiveXObject": true,
   },
   "rules": {
     "no-fallthrough": false,
     "yoda": false,
     "no-shadow": false,
     "no-new": false,
-    "no-extend-native": false
+    "no-extend-native": false,
+    "new-cap": [2, {
+      "capIsNewExceptions": ["Object", "Deferred"]
+    }]
   },
 
 }
